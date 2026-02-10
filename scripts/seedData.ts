@@ -3,15 +3,20 @@
  * Generates realistic sample data for testing and development
  */
 
-import { initializeApp } from 'firebase/app'
-import {
-  getFirestore,
-  collection,
-  doc,
-  setDoc,
-  connectFirestoreEmulator,
-} from 'firebase/firestore'
-import { getAuth, connectAuthEmulator } from 'firebase/auth'
+// SET EMULATOR HOSTS BEFORE ANY IMPORTS
+process.env.FIRESTORE_EMULATOR_HOST = 'localhost:8080'
+process.env.FIREBASE_AUTH_EMULATOR_HOST = 'localhost:9099'
+
+import { initializeApp, getApps } from 'firebase-admin/app'
+import { getAuth } from 'firebase-admin/auth'
+import { getFirestore, Timestamp } from 'firebase-admin/firestore'
+// Remove these Firebase client SDK imports - we're using admin SDK
+// import {
+//   collection,
+//   doc,
+//   setDoc,
+//   connectFirestoreEmulator,
+// } from 'firebase/firestore'
 import type {
   Camp,
   CampParticipant,
@@ -21,30 +26,26 @@ import type {
   ParticipantState,
 } from '../src/models/index'
 
-// Firebase config for emulator
-const firebaseConfig = {
-  apiKey: 'demo-api-key',
-  authDomain: 'demo-project.firebaseapp.com',
-  projectId: 'fl-camp-app',
+// Initialize admin SDK for seeding
+if (!getApps().length) {
+  initializeApp({
+    projectId: 'fl-camp-app',
+  })
 }
 
-const app = initializeApp(firebaseConfig)
-const db = getFirestore(app)
-const auth = getAuth(app)
+const auth = getAuth()
+const db = getFirestore()
 
-// Connect to emulators
-connectFirestoreEmulator(db, 'localhost', 8080)
-connectAuthEmulator(auth, 'http://localhost:9099')
-
-// Helper to remove undefined values (Firestore doesn't allow them)
-function removeUndefined<T>(obj: T): T {
+// Helper to remove undefined values and convert Dates to Timestamps
+function prepareForFirestore<T>(obj: T): T {
   if (obj === null || typeof obj !== 'object') return obj
-  if (Array.isArray(obj)) return obj.map(removeUndefined) as T
+  if (obj instanceof Date) return Timestamp.fromDate(obj) as any
+  if (Array.isArray(obj)) return obj.map(prepareForFirestore) as T
 
   const result: any = {}
   for (const [key, value] of Object.entries(obj)) {
     if (value !== undefined) {
-      result[key] = removeUndefined(value)
+      result[key] = prepareForFirestore(value)
     }
   }
   return result
@@ -532,11 +533,25 @@ const participants: CampParticipant[] = [
 // Sample users
 const users: User[] = [
   {
-    id: 'user-admin-001',
+    id: 'user-super-admin-001',
+    email: 'superadmin@flcamp.com',
+    firstName: 'Super',
+    lastName: 'Admin',
+    phoneNumber: '+1-555-0000',
+    globalRoles: ['super_admin'],
+    roles: {},
+    campIds: ['camp-summer-2026', 'camp-winter-2026', 'camp-spring-2026'],
+    isActive: true,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-02-01'),
+  },
+  {
+    id: 'user-camp-admin-001',
     email: 'admin@flcamp.com',
-    firstName: 'Admin',
-    lastName: 'User',
+    firstName: 'Camp',
+    lastName: 'Admin',
     phoneNumber: '+1-555-0001',
+    globalRoles: [],
     roles: {
       'camp-summer-2026': 'admin',
       'camp-winter-2026': 'admin',
@@ -548,26 +563,27 @@ const users: User[] = [
     updatedAt: new Date('2026-02-01'),
   },
   {
-    id: 'user-staff-001',
-    email: 'staff1@flcamp.com',
-    firstName: 'Staff',
-    lastName: 'One',
+    id: 'user-treasurer-001',
+    email: 'treasurer@flcamp.com',
+    firstName: 'Treasurer',
+    lastName: 'User',
     phoneNumber: '+1-555-0002',
+    globalRoles: [],
     roles: {
-      'camp-summer-2026': 'staff',
-      'camp-spring-2026': 'staff',
+      'camp-summer-2026': 'admin',
     },
-    campIds: ['camp-summer-2026', 'camp-spring-2026'],
+    campIds: ['camp-summer-2026'],
     isActive: true,
     createdAt: new Date('2026-01-05'),
     updatedAt: new Date('2026-02-01'),
   },
   {
-    id: 'user-staff-002',
-    email: 'staff2@flcamp.com',
-    firstName: 'Staff',
-    lastName: 'Two',
+    id: 'user-limited-001',
+    email: 'limited@flcamp.com',
+    firstName: 'Limited',
+    lastName: 'User',
     phoneNumber: '+1-555-0003',
+    globalRoles: [],
     roles: {
       'camp-summer-2026': 'staff',
     },
@@ -578,41 +594,87 @@ const users: User[] = [
   },
 ]
 
+// Test users for Firebase Auth (password: TestPassword123!)
+const testAuthUsers = [
+  {
+    email: 'superadmin@flcamp.com',
+    password: 'TestPassword123!',
+    userId: 'user-super-admin-001',
+  },
+  {
+    email: 'admin@flcamp.com',
+    password: 'TestPassword123!',
+    userId: 'user-camp-admin-001',
+  },
+  {
+    email: 'treasurer@flcamp.com',
+    password: 'TestPassword123!',
+    userId: 'user-treasurer-001',
+  },
+  {
+    email: 'limited@flcamp.com',
+    password: 'TestPassword123!',
+    userId: 'user-limited-001',
+  },
+]
+
 // Seed function
 async function seedDatabase() {
   console.log('🌱 Starting database seed...\n')
 
   try {
+    // Create Firebase Auth users
+    console.log('🔐 Creating Firebase Auth users...')
+    for (const testUser of testAuthUsers) {
+      try {
+        await auth.createUser({
+          uid: testUser.userId,
+          email: testUser.email,
+          password: testUser.password,
+        })
+        console.log(`  ✓ Created auth user: ${testUser.email}`)
+      } catch (error: any) {
+        if (error.code === 'auth/email-already-exists') {
+          console.log(`  ⓘ Auth user already exists: ${testUser.email}`)
+        } else {
+          console.error(
+            `  ✗ Failed to create auth user ${testUser.email}:`,
+            error.message,
+          )
+        }
+      }
+    }
+
     // Seed camps
-    console.log('📋 Seeding camps...')
+    console.log('\n📋 Seeding camps...')
     for (const camp of camps) {
-      await setDoc(doc(db, 'camps', camp.id), removeUndefined(camp))
+      await db.collection('camps').doc(camp.id).set(prepareForFirestore(camp))
       console.log(`  ✓ Created camp: ${camp.name}`)
     }
 
     // Seed rooms
     console.log('\n🏠 Seeding rooms...')
     for (const room of rooms) {
-      await setDoc(doc(db, 'rooms', room.id), removeUndefined(room))
+      await db.collection('rooms').doc(room.id).set(prepareForFirestore(room))
       console.log(`  ✓ Created room: ${room.name}`)
     }
 
     // Seed participants
     console.log('\n👥 Seeding participants...')
     for (const participant of participants) {
-      await setDoc(
-        doc(db, 'participants', participant.id),
-        removeUndefined(participant),
-      )
+      await db
+        .collection('participants')
+        .doc(participant.id)
+        .set(prepareForFirestore(participant))
       console.log(
-        `  ✓ Created participant: ${participant.personalInfo.firstName} ${participant.personalInfo.lastName} (${participant.states.registration.state})`,
+        `  ✓ Created participant: ${participant.personalInfo.firstName} ${participant.personalInfo.lastName}`,
       )
     }
 
     // Seed users
     console.log('\n🔑 Seeding users...')
     for (const user of users) {
-      await setDoc(doc(db, 'users', user.id), removeUndefined(user))
+      await db.collection('users').doc(user.id).set(prepareForFirestore(user))
       console.log(`  ✓ Created user: ${user.email}`)
     }
 
@@ -622,6 +684,27 @@ async function seedDatabase() {
     console.log(`  - ${rooms.length} rooms`)
     console.log(`  - ${participants.length} participants`)
     console.log(`  - ${users.length} users`)
+
+    console.log('\n🔑 Test User Credentials (Password: TestPassword123!):')
+    testAuthUsers.forEach((user) => {
+      const userRole = users.find((u) => u.email === user.email)
+      if (userRole?.globalRoles?.includes('super_admin')) {
+        console.log(
+          `  - ${user.email} (Super Admin - Full access to all camps)`,
+        )
+      } else {
+        const campRoles = userRole?.roles ? Object.entries(userRole.roles) : []
+        if (campRoles.length > 0) {
+          const rolesStr = campRoles
+            .map(([cid, role]) => `${cid}: ${role}`)
+            .join(', ')
+          console.log(`  - ${user.email} (${rolesStr})`)
+        } else {
+          console.log(`  - ${user.email} (No roles assigned)`)
+        }
+      }
+    })
+
     console.log('\n🔍 Participant state breakdown:')
     const stateCounts = participants.reduce(
       (acc, p) => {
@@ -638,6 +721,7 @@ async function seedDatabase() {
     console.log('\n💡 Access the data:')
     console.log('  - Firestore UI: http://localhost:4000/firestore')
     console.log('  - Auth UI: http://localhost:4000/auth')
+    console.log('  - App UI: http://localhost:5173')
     console.log('\n')
   } catch (error) {
     console.error('❌ Error seeding database:', error)

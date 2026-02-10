@@ -3,7 +3,7 @@
  * Works with Cloud Functions to manage authorization claims
  */
 
-import { getFunctions, httpsCallable } from 'firebase/functions'
+import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions'
 import { auth } from '@/firebase'
 
 export interface CustomClaims {
@@ -32,6 +32,16 @@ const TOKEN_EXPIRY_KEY = 'fl_camp_token_expiry'
 export async function exchangeFirebaseToken(): Promise<TokenExchangeResponse> {
   try {
     const functions = getFunctions()
+    
+    // Connect to emulator in development
+    if (window.location.hostname === 'localhost') {
+      try {
+        connectFunctionsEmulator(functions, 'localhost', 5001)
+      } catch (e) {
+        // Already connected, ignore
+      }
+    }
+    
     const exchangeToken = httpsCallable<void, TokenExchangeResponse>(
       functions,
       'exchangeToken',

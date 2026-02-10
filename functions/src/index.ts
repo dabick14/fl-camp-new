@@ -51,13 +51,25 @@ export const exchangeToken = functions.https.onCall(async (data, context) => {
     const email = context.auth.token.email || ''
 
     // Fetch user document from Firestore
-    const userDoc = await db.collection('users').doc(uid).get()
+    // First try to get by UID
+    let userDoc = await db.collection('users').doc(uid).get()
 
+    // If not found by UID, try to find by email
     if (!userDoc.exists) {
-      throw new functions.https.HttpsError(
-        'not-found',
-        'User profile not found. Please complete registration.',
-      )
+      const emailQuery = await db
+        .collection('users')
+        .where('email', '==', email)
+        .limit(1)
+        .get()
+
+      if (emailQuery.empty) {
+        throw new functions.https.HttpsError(
+          'not-found',
+          'User profile not found. Please complete registration.',
+        )
+      }
+
+      userDoc = emailQuery.docs[0]
     }
 
     const userData = userDoc.data()!
@@ -121,12 +133,24 @@ export const refreshToken = functions.https.onCall(async (data, context) => {
     }
 
     const uid = context.auth.uid
+    const email = context.auth.token.email || ''
 
     // Fetch latest user data
-    const userDoc = await db.collection('users').doc(uid).get()
+    // First try by UID, then by email
+    let userDoc = await db.collection('users').doc(uid).get()
 
     if (!userDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'User not found')
+      const emailQuery = await db
+        .collection('users')
+        .where('email', '==', email)
+        .limit(1)
+        .get()
+
+      if (emailQuery.empty) {
+        throw new functions.https.HttpsError('not-found', 'User not found')
+      }
+
+      userDoc = emailQuery.docs[0]
     }
 
     const userData = userDoc.data()!

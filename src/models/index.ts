@@ -120,7 +120,7 @@ export interface Camp {
  */
 export interface ParticipantStateTracking {
   registration: {
-    state: 'draft' | 'registered'
+    state: 'draft' | 'registered' | 'cancelled'
     timestamp: Date
     actorUid?: string
   }
@@ -237,6 +237,7 @@ export interface User {
   lastName: string
   phoneNumber?: string
   photoUrl?: string
+  globalRoles?: string[] // global roles like 'super_admin'
   roles: Record<string, UserRole> // campId → role mapping
   campIds: string[] // camps user has access to
   isActive: boolean
