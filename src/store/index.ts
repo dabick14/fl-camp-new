@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { subscribeWithSelector } from 'zustand/react'
+import { subscribeWithSelector } from 'zustand/middleware'
 import { User as FirebaseUser } from 'firebase/auth'
 import type { Camp, CampParticipant } from '@models/index'
 

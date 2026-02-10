@@ -1,6 +1,6 @@
 import {
   signInWithEmailAndPassword,
-  signUpWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   User as FirebaseUser,
@@ -56,12 +56,13 @@ export async function signIn(
 
     const idToken = await userCredential.user.getIdToken()
 
-    // Exchange Firebase token for JWT tokens from backend
-    const response = await apiClient.post<AuthTokens>('/auth/signin', {
+    // TODO: Exchange Firebase token for JWT tokens from backend
+    // For now, use Firebase token directly
+    return {
       idToken,
-    })
-
-    return response.data
+      refreshToken: userCredential.user.refreshToken || '',
+      expiresIn: 3600,
+    }
   } catch (error) {
     console.error('Sign in failed:', error)
     throw error
@@ -73,7 +74,7 @@ export async function signIn(
  */
 export async function signUp(data: SignUpData): Promise<AuthTokens> {
   try {
-    const userCredential = await signUpWithEmailAndPassword(
+    const userCredential = await createUserWithEmailAndPassword(
       auth,
       data.email,
       data.password,
@@ -86,15 +87,13 @@ export async function signUp(data: SignUpData): Promise<AuthTokens> {
 
     const idToken = await userCredential.user.getIdToken()
 
-    // Create user record in backend
-    const response = await apiClient.post<AuthTokens>('/auth/signup', {
+    // TODO: Create user record in backend
+    // For now, use Firebase token directly
+    return {
       idToken,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-    })
-
-    return response.data
+      refreshToken: userCredential.user.refreshToken || '',
+      expiresIn: 3600,
+    }
   } catch (error) {
     console.error('Sign up failed:', error)
     throw error
