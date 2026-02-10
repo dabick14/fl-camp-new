@@ -1,7 +1,6 @@
 {
   "name": "fl-camp-functions",
   "description": "Cloud Functions for FL Camp App",
-  "type": "module",
   "scripts": {
     "build": "tsc",
     "serve": "firebase emulators:start --only functions",

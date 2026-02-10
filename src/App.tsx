@@ -13,7 +13,8 @@ import CampsPage from '@/features/camps/CampsPage'
 import CampCreatePage from '@/features/camps/CampCreatePage'
 import { CampDetail } from '@/features/camps/CampDetail'
 import DashboardPage from '@/features/dashboard/DashboardPage'
-import AttendeeRegistrationPage from '@/features/attendee/RegistrationPage'
+import RegistrationPage from '@/features/registration/RegistrationPage'
+import ParticipantDetail from '@/features/participants/ParticipantDetail'
 
 /**
  * Login page (public)
@@ -42,7 +43,7 @@ export default function App() {
       <Routes>
         {/* Public routes */}
         <Route path='/login' element={<LoginPage />} />
-        <Route path='/register/:slug' element={<AttendeeRegistrationPage />} />
+        <Route path='/register/:slug' element={<RegistrationPage />} />
 
         {/* Protected routes - Camp Management */}
         <Route
@@ -77,6 +78,16 @@ export default function App() {
           element={
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Participant Management */}
+        <Route
+          path='/admin/participants/:id'
+          element={
+            <ProtectedRoute>
+              <ParticipantDetail />
             </ProtectedRoute>
           }
         />

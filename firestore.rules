@@ -131,8 +131,8 @@ service cloud.firestore {
       // Camp staff can read participants in their camps
       allow read: if canViewCamp(resource.data.campId);
       
-      // Anyone can create participant (for registration)
-      allow create: if isAuthenticated();
+      // Block direct creation - must use Cloud Function for security
+      allow create: if false;
       
       // Camp admins can update participants
       allow update: if canManageCamp(resource.data.campId);
