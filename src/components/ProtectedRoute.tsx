@@ -55,7 +55,7 @@ export function CampAccessRoute({ children, campId }: CampAccessRouteProps) {
   // TODO: Implement role checking against Firebase custom claims
   // For now, just ensure authenticated
   if (!campId) {
-    return <Navigate to='/camps' replace />
+    return <Navigate to='/admin/camps' replace />
   }
 
   return <>{children}</>

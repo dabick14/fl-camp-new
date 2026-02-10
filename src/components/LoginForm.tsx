@@ -38,7 +38,7 @@ export function LoginForm() {
       await exchangeFirebaseToken()
 
       // 3. Redirect to camps page
-      navigate('/camps')
+      navigate('/admin/camps')
     } catch (err: any) {
       // Handle specific Firebase auth errors
       let errorMessage = 'Login failed'

@@ -9,7 +9,9 @@ import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { LoginForm } from '@/components/LoginForm'
 
 // Lazy load feature pages
-import CampListPage from '@/features/camps/CampListPage'
+import CampsPage from '@/features/camps/CampsPage'
+import CampCreatePage from '@/features/camps/CampCreatePage'
+import { CampDetail } from '@/features/camps/CampDetail'
 import DashboardPage from '@/features/dashboard/DashboardPage'
 import AttendeeRegistrationPage from '@/features/attendee/RegistrationPage'
 
@@ -21,7 +23,7 @@ function LoginPage() {
 
   // If already logged in, redirect to camps
   if (user) {
-    return <Navigate to='/camps' replace />
+    return <Navigate to='/admin/camps' replace />
   }
 
   return (
@@ -42,12 +44,30 @@ export default function App() {
         <Route path='/login' element={<LoginPage />} />
         <Route path='/register/:slug' element={<AttendeeRegistrationPage />} />
 
-        {/* Protected routes */}
+        {/* Protected routes - Camp Management */}
         <Route
-          path='/camps'
+          path='/admin/camps'
           element={
             <ProtectedRoute>
-              <CampListPage />
+              <CampsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path='/admin/camps/new'
+          element={
+            <ProtectedRoute>
+              <CampCreatePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path='/admin/camps/:campId'
+          element={
+            <ProtectedRoute>
+              <CampDetail />
             </ProtectedRoute>
           }
         />
@@ -61,9 +81,9 @@ export default function App() {
           }
         />
 
-        {/* Catch-all: redirect to camps or login */}
-        <Route path='/' element={<Navigate to='/camps' replace />} />
-        <Route path='*' element={<Navigate to='/camps' replace />} />
+        {/* Catch-all: redirect to admin camps or login */}
+        <Route path='/' element={<Navigate to='/admin/camps' replace />} />
+        <Route path='*' element={<Navigate to='/admin/camps' replace />} />
       </Routes>
     </Router>
   )
