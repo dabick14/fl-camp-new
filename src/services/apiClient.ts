@@ -1,6 +1,15 @@
 import axios, { AxiosInstance, AxiosError } from 'axios'
 import { auth } from '@/firebase'
 
+interface ImportMetaEnv {
+  VITE_API_BASE_URL?: string
+  VITE_API_TIMEOUT?: string
+}
+
+interface ImportMeta {
+  env: ImportMetaEnv
+}
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 const API_TIMEOUT = parseInt(import.meta.env.VITE_API_TIMEOUT || '10000')

@@ -1,0 +1,186 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================================================
+    // Helper Functions
+    // ============================================================================
+    
+    /**
+     * Check if user is authenticated
+     */
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    /**
+     * Check if user has a specific global role
+     */
+    function hasGlobalRole(role) {
+      return isAuthenticated() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid))
+               .data.globalRoles.hasAny([role]);
+    }
+    
+    /**
+     * Check if user is super admin
+     */
+    function isSuperAdmin() {
+      return hasGlobalRole('super_admin');
+    }
+    
+    /**
+     * Check if user has a specific role for a camp
+     */
+    function hasCampRole(campId, role) {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid))
+               .data.roles[campId] == role;
+    }
+    
+    /**
+     * Check if user has any role for a camp (admin or treasurer)
+     */
+    function hasAnyCampRole(campId) {
+      return isAuthenticated() &&
+             campId in get(/databases/$(database)/documents/users/$(request.auth.uid))
+               .data.roles;
+    }
+    
+    /**
+     * Check if user can manage a camp (super_admin or camp admin)
+     */
+    function canManageCamp(campId) {
+      return isSuperAdmin() || hasCampRole(campId, 'admin');
+    }
+    
+    /**
+     * Check if user can view camp data (super_admin or has any camp role)
+     */
+    function canViewCamp(campId) {
+      return isSuperAdmin() || hasAnyCampRole(campId);
+    }
+    
+    /**
+     * Check if user can manage finances (super_admin or treasurer)
+     */
+    function canManageFinances(campId) {
+      return isSuperAdmin() || 
+             hasCampRole(campId, 'admin') ||
+             hasCampRole(campId, 'treasurer');
+    }
+    
+    // ============================================================================
+    // Users Collection
+    // ============================================================================
+    
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Super admins can read all users
+      allow read: if isSuperAdmin();
+      
+      // Users can update their own basic profile fields
+      allow update: if isAuthenticated() && 
+                       request.auth.uid == userId &&
+                       // Prevent users from changing their own roles
+                       !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['globalRoles', 'roles', 'campIds']);
+      
+      // Only super admins can create users or modify roles
+      allow create, delete: if isSuperAdmin();
+      allow update: if isSuperAdmin();
+    }
+    
+    // ============================================================================
+    // Camps Collection
+    // ============================================================================
+    
+    match /camps/{campId} {
+      // Anyone can read camp info (for public registration)
+      allow read: if true;
+      
+      // Only super admins and camp admins can create/update/delete camps
+      allow create: if isSuperAdmin();
+      allow update, delete: if canManageCamp(campId);
+    }
+    
+    // ============================================================================
+    // Rooms Collection
+    // ============================================================================
+    
+    match /rooms/{roomId} {
+      // Super admins and camp staff can read all rooms
+      allow read: if isSuperAdmin() || 
+                     hasAnyCampRole(resource.data.campId);
+      
+      // Only camp admins can manage rooms
+      allow create, update, delete: if canManageCamp(resource.data.campId);
+    }
+    
+    // ============================================================================
+    // Participants Collection
+    // ============================================================================
+    
+    match /participants/{participantId} {
+      // Anyone can read participants for public display (name, camp, etc.)
+      // In production, you might want to restrict this
+      allow read: if true;
+      
+      // Camp staff can read participants in their camps
+      allow read: if canViewCamp(resource.data.campId);
+      
+      // Anyone can create participant (for registration)
+      allow create: if isAuthenticated();
+      
+      // Camp admins can update participants
+      allow update: if canManageCamp(resource.data.campId);
+      
+      // Treasurers can update payment status
+      allow update: if canManageFinances(resource.data.campId) &&
+                       // Only allow updating payment-related fields
+                       request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['paymentDetails', 'states', 'updatedAt', 'updatedBy']);
+      
+      // Only super admins can delete participants
+      allow delete: if isSuperAdmin();
+    }
+    
+    // ============================================================================
+    // Payments Collection (if you have separate payment records)
+    // ============================================================================
+    
+    match /payments/{paymentId} {
+      // Only camp staff can read payments
+      allow read: if canViewCamp(resource.data.campId);
+      
+      // Treasurers and admins can create/update payments
+      allow create, update: if canManageFinances(resource.data.campId);
+      
+      // Only super admins can delete payments
+      allow delete: if isSuperAdmin();
+    }
+    
+    // ============================================================================
+    // Audit Logs
+    // ============================================================================
+    
+    match /auditLogs/{logId} {
+      // Only super admins can read audit logs
+      allow read: if isSuperAdmin();
+      
+      // Cloud Functions can write audit logs (via Admin SDK)
+      // Regular users cannot write audit logs
+      allow write: if false;
+    }
+    
+    // ============================================================================
+    // Default: Deny all other access
+    // ============================================================================
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

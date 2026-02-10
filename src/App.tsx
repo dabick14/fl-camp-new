@@ -6,7 +6,6 @@ import {
 } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { PageLayout } from '@/components/PageLayout'
 import { LoginForm } from '@/components/LoginForm'
 
 // Lazy load feature pages

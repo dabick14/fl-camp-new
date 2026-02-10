@@ -15,7 +15,7 @@ interface AuthStore {
 /**
  * Global auth state store
  */
-export const useAuthStore = create<AuthStore>(
+export const useAuthStore = create<AuthStore, [["zustand/subscribeWithSelector", never]]>(
   subscribeWithSelector((set) => ({
     user: null,
     isAuthenticated: false,
@@ -50,7 +50,7 @@ interface CampStore {
 /**
  * Global camp state store
  */
-export const useCampStore = create<CampStore>(
+export const useCampStore = create<CampStore, [["zustand/subscribeWithSelector", never]]>(
   subscribeWithSelector((set) => ({
     selectedCampId: null,
     camps: new Map(),
@@ -91,7 +91,7 @@ interface ParticipantStore {
 /**
  * Global participant state store
  */
-export const useParticipantStore = create<ParticipantStore>(
+export const useParticipantStore = create<ParticipantStore, [["zustand/subscribeWithSelector", never]]>(
   subscribeWithSelector((set) => ({
     participants: new Map(),
     selectedParticipantId: null,

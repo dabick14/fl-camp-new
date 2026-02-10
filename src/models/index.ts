@@ -4,17 +4,24 @@
 
 /**
  * Participant state machine transitions:
- * draft → registered → payment_pending → paid → room_assigned → checked_in
+ * draft → registered → payment_pending → paid → paid_unassigned → room_assigned → checked_in → checked_out
  */
 export type ParticipantState =
   | 'draft'
   | 'registered'
   | 'payment_pending'
   | 'paid'
+  | 'paid_unassigned'
   | 'room_assigned'
   | 'checked_in'
+  | 'checked_out'
   | 'cancelled'
-  | 'no_show'
+
+// Branded types for stronger type safety
+export type ParticipantId = string & { readonly brand: unique symbol }
+export type CampId = string & { readonly brand: unique symbol }
+export type RoomId = string & { readonly brand: unique symbol }
+export type UserId = string & { readonly brand: unique symbol }
 
 /**
  * User roles with camp-scoped access
@@ -31,14 +38,10 @@ export type UserRole =
  * (age, grade, gender, buddy system, etc.)
  */
 export interface GroupingDimension {
-  id: string
-  campId: string
   name: string
-  type: 'select' | 'text' | 'number' | 'checkbox'
   required: boolean
-  options?: string[] // for select type
-  createdAt: Date
-  updatedAt: Date
+  values: string[]
+  order: number
 }
 
 /**
@@ -48,13 +51,13 @@ export interface Room {
   id: string
   campId: string
   name: string
+  type: string
   capacity: number
+  gender?: 'male' | 'female' | null
+  overbookAllowed: boolean
   currentOccupancy: number
-  allowOverbook: boolean
-  overbookPercentage?: number // e.g., 110 means 10% overbooking allowed
-  genderSegregated: boolean
-  allowedGenders?: ('male' | 'female' | 'other')[]
   floor?: string | number
+  building?: string
   notes?: string
   createdAt: Date
   updatedAt: Date
@@ -84,8 +87,10 @@ export interface Camp {
   name: string
   slug: string // for self-service registration links
   description?: string
-  startDate: Date
-  endDate: Date
+  dates: {
+    start: Date
+    end: Date
+  }
   location?: string
   maxParticipants?: number
   minAge?: number
@@ -97,8 +102,9 @@ export interface Camp {
   totalCost?: number
   paymentRequired: boolean
   paymentDeadline?: Date
-  paymentProcessor?: 'stripe' | 'paypal' | 'custom' // extensible
-  groupingDimensions: string[] // array of GroupingDimension IDs
+  paymentProcessor?: 'stripe' | 'paypal' | 'custom'
+  groupingDimensions: GroupingDimension[]
+  roomAssignmentType: 'pre_assigned' | 'on_site' | 'mixed'
   imageUrl?: string
   organizerId: string
   staff: {
@@ -110,43 +116,112 @@ export interface Camp {
 }
 
 /**
+ * State tracking for different lifecycle phases
+ */
+export interface ParticipantStateTracking {
+  registration: {
+    state: 'draft' | 'registered'
+    timestamp: Date
+    actorUid?: string
+  }
+  payment: {
+    state: 'pending' | 'paid' | 'cancelled'
+    timestamp: Date
+    actorUid?: string
+  }
+  room: {
+    state: 'unassigned' | 'assigned' | 'checked_in' | 'checked_out'
+    timestamp: Date
+    actorUid?: string
+  }
+  checkIn: {
+    state: 'pending' | 'checked_in' | 'checked_out' | 'no_show'
+    timestamp: Date
+    actorUid?: string
+  }
+}
+
+/**
+ * Audit history entry
+ */
+export interface AuditEntry {
+  actorUid: string
+  ts: Date
+  note?: string
+}
+
+/**
  * Camp participant with state machine tracking
  */
 export interface CampParticipant {
   id: string
   campId: string
   userId?: string // optional, for parent registrations
-  firstName: string
-  lastName: string
-  email: string
-  phone?: string
-  dateOfBirth?: Date
-  gender?: 'male' | 'female' | 'other'
-  state: ParticipantState
-  stateChangedAt: Date
-  stateChangedBy?: string // user ID
 
-  // Grouping dimension values
-  dimensionValues: Record<string, string | number | boolean>
+  // Personal information
+  personalInfo: {
+    firstName: string
+    lastName: string
+    email: string
+    phone?: string
+    dateOfBirth?: Date
+    gender?: 'male' | 'female' | 'other'
+    emergencyContact?: {
+      name: string
+      phone: string
+      relationship: string
+    }
+    medicalInfo?: {
+      allergies?: string[]
+      medications?: string[]
+      conditions?: string[]
+      notes?: string
+    }
+  }
 
-  // Room assignment
-  roomId?: string
-  roomAssignedAt?: Date
-  roomAssignedBy?: string
+  // Grouping dimension values (e.g., {"ageGroup": "13-15", "skillLevel": "beginner"})
+  groupingValues: Record<string, string>
+
+  // State machine tracking for each lifecycle phase
+  states: ParticipantStateTracking
 
   // Payment tracking
-  paymentStatus?: 'pending' | 'processing' | 'completed' | 'failed'
-  paymentAmount?: number
-  paymentMethod?: string
-  paymentIntentId?: string // Stripe, PayPal, etc.
-  paymentDate?: Date
+  paymentDetails: {
+    status: 'pending' | 'processing' | 'completed' | 'failed' | 'refunded'
+    amount?: number
+    currency?: string
+    method?: string
+    transactionId?: string
+    processor?: 'stripe' | 'paypal' | 'custom'
+    paidAt?: Date
+    auditHistory: AuditEntry[]
+  }
 
-  // Metadata
+  // Room assignment
+  room?: {
+    roomId: string
+    tentative?: boolean // for overbooking scenarios
+    assignedAt?: Date
+    assignedBy?: string
+  }
+
+  // Check-in tracking
+  checkIn?: {
+    ts: Date
+    actorUid: string
+  }
+
+  // Check-out tracking
+  checkOut?: {
+    ts: Date
+    actorUid: string
+  }
+
+  // Additional notes
   notes?: string
-  registeredAt: Date
-  checkedInAt?: Date
 
   // Audit trail
+  registeredAt: Date
   createdAt: Date
   updatedAt: Date
   createdBy?: string

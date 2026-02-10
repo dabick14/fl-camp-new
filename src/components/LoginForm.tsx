@@ -1,14 +1,25 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { signIn } from '@/auth/authService'
-import { useAuthStore } from '@/store'
+import { signInWithEmailAndPassword } from 'firebase/auth'
+import { auth } from '@/firebase'
+import { exchangeFirebaseToken } from '@/auth/customTokenService'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 
 /**
- * Login form component
+ * Login form component with custom JWT token exchange
  */
 export function LoginForm() {
   const navigate = useNavigate()
-  const setUser = useAuthStore((state) => state.setUser)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -20,74 +31,91 @@ export function LoginForm() {
     setLoading(true)
 
     try {
-      const tokens = await signIn({ email, password })
-      // Store tokens (in real app, would store in secure location)
-      localStorage.setItem('idToken', tokens.idToken)
-      localStorage.setItem('refreshToken', tokens.refreshToken)
+      // 1. Sign in with Firebase Auth
+      await signInWithEmailAndPassword(auth, email, password)
 
-      // Redirect to camps page
+      // 2. Exchange for custom token (with claims)
+      await exchangeFirebaseToken()
+
+      // 3. Redirect to camps page
       navigate('/camps')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+    } catch (err: any) {
+      // Handle specific Firebase auth errors
+      let errorMessage = 'Login failed'
+
+      if (err.code === 'auth/invalid-credential') {
+        errorMessage = 'Invalid email or password'
+      } else if (err.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email'
+      } else if (err.code === 'auth/wrong-password') {
+        errorMessage = 'Incorrect password'
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many failed attempts. Please try again later.'
+      } else if (err.message) {
+        errorMessage = err.message
+      }
+
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className='w-full max-w-md mx-auto p-6 bg-white rounded-lg shadow'>
-      <h2 className='text-2xl font-bold mb-6 text-gray-800'>Sign In</h2>
+    <Card className='w-full max-w-md mx-auto'>
+      <CardHeader>
+        <CardTitle>Sign In</CardTitle>
+        <CardDescription>
+          Enter your credentials to access your account
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <div className='mb-4 p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-md text-sm'>
+            {error}
+          </div>
+        )}
 
-      {error && (
-        <div className='mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded'>
-          {error}
-        </div>
-      )}
+        <form onSubmit={handleSubmit} className='space-y-4'>
+          <div className='space-y-2'>
+            <Label htmlFor='email'>Email</Label>
+            <Input
+              id='email'
+              type='email'
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+              placeholder='you@example.com'
+            />
+          </div>
 
-      <form onSubmit={handleSubmit} className='space-y-4'>
-        <div>
-          <label className='block text-sm font-medium text-gray-700 mb-2'>
-            Email
-          </label>
-          <input
-            type='email'
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className='w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none'
-            disabled={loading}
-          />
-        </div>
+          <div className='space-y-2'>
+            <Label htmlFor='password'>Password</Label>
+            <Input
+              id='password'
+              type='password'
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={loading}
+              placeholder='••••••••'
+            />
+          </div>
 
-        <div>
-          <label className='block text-sm font-medium text-gray-700 mb-2'>
-            Password
-          </label>
-          <input
-            type='password'
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className='w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none'
-            disabled={loading}
-          />
-        </div>
-
-        <button
-          type='submit'
-          disabled={loading}
-          className='w-full bg-blue-600 text-white font-semibold py-2 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition'
-        >
-          {loading ? 'Signing in...' : 'Sign In'}
-        </button>
-      </form>
-
-      <p className='mt-4 text-center text-sm text-gray-600'>
-        Don't have an account?{' '}
-        <a href='/signup' className='text-blue-600 hover:underline'>
-          Sign up
-        </a>
-      </p>
-    </div>
+          <Button type='submit' disabled={loading} className='w-full'>
+            {loading ? 'Signing in...' : 'Sign In'}
+          </Button>
+        </form>
+      </CardContent>
+      <CardFooter className='flex justify-center'>
+        <p className='text-sm text-muted-foreground'>
+          Don't have an account?{' '}
+          <a href='/signup' className='text-primary hover:underline'>
+            Sign up
+          </a>
+        </p>
+      </CardFooter>
+    </Card>
   )
 }

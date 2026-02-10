@@ -37,11 +37,7 @@ interface CampAccessRouteProps {
 /**
  * Route that checks camp-scoped access and role-based permissions
  */
-export function CampAccessRoute({
-  children,
-  campId,
-  requiredRole = 'staff',
-}: CampAccessRouteProps) {
+export function CampAccessRoute({ children, campId }: CampAccessRouteProps) {
   const { user, loading } = useAuth()
 
   if (loading) {
