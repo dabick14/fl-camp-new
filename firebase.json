@@ -19,6 +19,10 @@
       "host": "localhost",
       "port": 8085
     },
+    "data": {
+      "exportOnExit": true,
+      "import": "./emulator-data"
+    },
     "hub": {
       "host": "localhost",
       "port": 4400

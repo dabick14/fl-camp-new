@@ -3,7 +3,11 @@
  * Works with Cloud Functions to manage authorization claims
  */
 
-import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions'
+import {
+  getFunctions,
+  httpsCallable,
+  connectFunctionsEmulator,
+} from 'firebase/functions'
 import { auth } from '@/firebase'
 
 export interface CustomClaims {
@@ -32,7 +36,7 @@ const TOKEN_EXPIRY_KEY = 'fl_camp_token_expiry'
 export async function exchangeFirebaseToken(): Promise<TokenExchangeResponse> {
   try {
     const functions = getFunctions()
-    
+
     // Connect to emulator in development
     if (window.location.hostname === 'localhost') {
       try {
@@ -41,7 +45,7 @@ export async function exchangeFirebaseToken(): Promise<TokenExchangeResponse> {
         // Already connected, ignore
       }
     }
-    
+
     const exchangeToken = httpsCallable<void, TokenExchangeResponse>(
       functions,
       'exchangeToken',
@@ -135,7 +139,15 @@ export function getStoredToken(): string | null {
 export function getStoredClaims(): CustomClaims | null {
   try {
     const claimsJson = localStorage.getItem(TOKEN_CLAIMS_KEY)
-    return claimsJson ? JSON.parse(claimsJson) : null
+    const claims = claimsJson ? (JSON.parse(claimsJson) as any) : null
+    if (!claims) return null
+
+    // Backward compatibility: older tokens stored roles under `roles`
+    if (!claims.scopedRoles && claims.roles) {
+      claims.scopedRoles = claims.roles
+    }
+
+    return claims as CustomClaims
   } catch (error) {
     console.error('Failed to parse stored claims:', error)
     return null
@@ -183,6 +195,14 @@ export async function ensureValidToken(): Promise<boolean> {
     const storedToken = getStoredToken()
     if (!storedToken) {
       // No token, need to exchange
+      await exchangeFirebaseToken()
+      return true
+    }
+
+    // If stored claims belong to a different user, re-exchange
+    const storedClaims = getStoredClaims()
+    if (!storedClaims || storedClaims.uid !== user.uid) {
+      clearStoredToken()
       await exchangeFirebaseToken()
       return true
     }

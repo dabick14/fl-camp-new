@@ -18,6 +18,15 @@ export default function CampsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const canCreateCamp =
+    isSuperAdmin ||
+    Object.values(
+      (claims?.scopedRoles || (claims as any)?.roles || {}) as Record<
+        string,
+        string
+      >,
+    ).some((role) => role === 'admin' || role === 'organizer')
+
   useEffect(() => {
     const fetchCamps = async () => {
       if (!user) {
@@ -26,7 +35,7 @@ export default function CampsPage() {
       }
 
       try {
-        const scopedRoles = claims?.scopedRoles || {}
+        const scopedRoles = claims?.scopedRoles || (claims as any)?.roles || {}
         const campsData = await getCampsForUser(
           user.uid,
           isSuperAdmin,
@@ -66,10 +75,12 @@ export default function CampsPage() {
             <h1 className='text-3xl font-bold'>Camp Management</h1>
             <p className='text-gray-600 mt-1'>Create and manage your camps</p>
           </div>
-          <Button onClick={() => navigate('/admin/camps/new')}>
-            <Plus className='mr-2 h-4 w-4' />
-            Create Camp
-          </Button>
+          {canCreateCamp && (
+            <Button onClick={() => navigate('/admin/camps/new')}>
+              <Plus className='mr-2 h-4 w-4' />
+              Create Camp
+            </Button>
+          )}
         </div>
 
         <CampList camps={camps} loading={loading} />
